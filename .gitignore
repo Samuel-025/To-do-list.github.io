@@ -1,0 +1,24 @@
+# Environment
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Databases (Local SQLite)
+*.db
+*.sqlite3
+
+# VS Code settings (optional local state)
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+
+# Operating System
+.DS_Store
+Thumbs.db

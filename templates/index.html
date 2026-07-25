@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow</title>
+    <!-- Favicon for Browser Tab -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.svg') }}">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="taskflow-app">
+        <!-- Header Navbar -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="brand-logo-box">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="6" x2="15" y2="6"></line>
+                        <line x1="3" y1="12" x2="15" y2="12"></line>
+                        <line x1="3" y1="18" x2="15" y2="18"></line>
+                        <polyline points="16 10 19 13 23 8"></polyline>
+                    </svg>
+                </div>
+                <span class="brand-title">TaskFlow</span>
+            </div>
+
+            <div class="header-right">
+                <span class="user-greeting">Hi, <span id="userName">User</span> 👏</span>
+                
+                <div class="account-menu-wrapper">
+                    <button id="accountDropdownBtn" class="account-btn">
+                        Account <span class="caret">˅</span>
+                    </button>
+                    <!-- Account Dropdown Menu -->
+                    <div id="accountDropdown" class="account-dropdown">
+                        <div class="dropdown-header">
+                            <div class="dropdown-username" id="dropdownUserName">User</div>
+                            <div class="dropdown-useremail" id="dropdownUserEmail">user@example.com</div>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <button id="openAccountModalBtn" class="dropdown-item">
+                            ⚙️ Account Settings
+                        </button>
+                        <button id="logoutBtn" class="dropdown-item danger">
+                            🚪 Sign Out
+                        </button>
+                    </div>
+                </div>
+
+                <button id="themeToggleBtn" class="theme-icon-btn" title="Toggle Theme">
+                    <span class="theme-icon">☼</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Top Stat Cards (3 Column Grid) -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="statTotal">0</div>
+                <div class="stat-label">TOTAL</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statDone">0</div>
+                <div class="stat-label">DONE</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statPending">0</div>
+                <div class="stat-label">PENDING</div>
+            </div>
+        </div>
+
+        <!-- Progress Track -->
+        <div class="progress-section">
+            <div class="progress-header">
+                <span class="progress-title">Progress</span>
+                <span class="progress-percent" id="completionPercent">0%</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="completionBarFill"></div>
+            </div>
+        </div>
+
+        <!-- Add Task Box -->
+        <form id="addTaskForm" class="add-task-card">
+            <div class="add-task-top">
+                <input type="text" id="taskContentInput" placeholder="What needs to be done?" required autocomplete="off">
+                <button type="submit" class="add-task-submit-btn">Add Task</button>
+            </div>
+            <div class="add-task-bottom">
+                <div class="priority-selector">
+                    <span class="selector-label">Priority:</span>
+                    <button type="button" class="priority-pill low" data-priority="low">Low</button>
+                    <button type="button" class="priority-pill medium active" data-priority="medium">Medium</button>
+                    <button type="button" class="priority-pill high" data-priority="high">High</button>
+                </div>
+                <div class="due-selector">
+                    <span class="selector-label">Due:</span>
+                    <input type="date" id="taskDueDateInput" class="due-date-input">
+                </div>
+            </div>
+        </form>
+
+        <!-- Filter Pills & Sorting Controls -->
+        <div class="controls-row">
+            <div class="filter-pills">
+                <button type="button" class="filter-pill active" data-filter="all">All</button>
+                <button type="button" class="filter-pill" data-filter="active">Active</button>
+                <button type="button" class="filter-pill" data-filter="done">Done</button>
+                <button type="button" class="filter-pill" data-filter="high_priority">High Priority</button>
+            </div>
+            <div class="sort-wrapper">
+                <select id="sortSelect" class="sort-select">
+                    <option value="created_at">Newest first ˅</option>
+                    <option value="oldest">Oldest first</option>
+                    <option value="priority">Priority</option>
+                    <option value="due_date">Due date</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Task List Container -->
+        <ul id="taskList" class="task-list"></ul>
+
+        <!-- Empty State View -->
+        <div id="emptyView" class="empty-state" style="display: none;">
+            <div class="empty-icon-box">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+            </div>
+            <h3>No tasks yet</h3>
+            <p>Add your first task above to get started.</p>
+        </div>
+    </div>
+
+    <!-- Task Detail Drawer (Slide-Over Panel for Subtasks & Notes) -->
+    <div id="drawerOverlay" class="drawer-overlay"></div>
+    <aside id="taskDrawer" class="task-drawer">
+        <div class="drawer-header">
+            <button id="closeDrawerBtn" class="close-btn" title="Close Panel">✕</button>
+            <div class="drawer-actions">
+                <button id="drawerStarBtn" class="star-btn" title="Mark Important">★</button>
+            </div>
+        </div>
+
+        <div class="drawer-body">
+            <div class="drawer-section">
+                <input type="text" id="drawerTaskTitle" class="drawer-title-input">
+            </div>
+
+            <div class="drawer-section">
+                <label class="section-label">Subtasks / Checklist</label>
+                <div id="subtaskProgressBar" class="subtask-progress-bar">
+                    <div id="subtaskProgressFill" class="progress-fill"></div>
+                </div>
+                <div id="subtaskList" class="subtask-list"></div>
+                <form id="addSubtaskForm" class="add-subtask-form">
+                    <span class="plus-icon-sm">+</span>
+                    <input type="text" id="subtaskInput" placeholder="Add a step..." autocomplete="off">
+                </form>
+            </div>
+
+            <div class="drawer-section">
+                <label class="section-label">Priority</label>
+                <select id="drawerPriority" class="drawer-select">
+                    <option value="low">Low Priority</option>
+                    <option value="medium">Medium Priority</option>
+                    <option value="high">High Priority ⚡</option>
+                </select>
+            </div>
+
+            <div class="drawer-section">
+                <label class="section-label">Due Date</label>
+                <input type="date" id="drawerDueDate" class="drawer-date-input">
+            </div>
+
+            <div class="drawer-section">
+                <label class="section-label">Notes</label>
+                <textarea id="drawerNotes" class="drawer-textarea" placeholder="Add details or notes..."></textarea>
+            </div>
+        </div>
+
+        <div class="drawer-footer">
+            <span id="drawerCreatedDate" class="created-date">Created --</span>
+            <button id="drawerDeleteTaskBtn" class="drawer-delete-btn">Delete Task</button>
+        </div>
+    </aside>
+
+    <!-- Account Settings Modal -->
+    <div id="accountModalOverlay" class="modal-overlay"></div>
+    <div id="accountModal" class="modal-container">
+        <div class="modal-header">
+            <h3>⚙️ Account Settings</h3>
+            <button id="closeAccountModalBtn" class="modal-close-btn">✕</button>
+        </div>
+
+        <div class="modal-body">
+            <div id="accountModalAlert" class="auth-alert" style="display: none;"></div>
+
+            <div class="modal-section">
+                <h4 class="modal-section-title">Profile Summary</h4>
+                <div class="info-row"><span class="info-label">Username:</span><span id="modalUsername" class="info-value">--</span></div>
+                <div class="info-row"><span class="info-label">Email:</span><span id="modalEmail" class="info-value">--</span></div>
+                <div class="info-row"><span class="info-label">Member Since:</span><span id="modalJoinedDate" class="info-value">--</span></div>
+            </div>
+
+            <div class="modal-section">
+                <h4 class="modal-section-title">Change Password</h4>
+                <form id="changePasswordForm">
+                    <div class="form-group"><label for="currentPasswordInput">Current Password</label><input type="password" id="currentPasswordInput" required placeholder="Enter current password"></div>
+                    <div class="form-group"><label for="newPasswordInput">New Password</label><input type="password" id="newPasswordInput" required placeholder="At least 6 characters"></div>
+                    <button type="submit" class="modal-btn primary">Update Password</button>
+                </form>
+            </div>
+
+            <div class="modal-section danger-zone">
+                <h4 class="modal-section-title danger">Danger Zone</h4>
+                <p class="danger-desc">Deleting your account is permanent. All your tasks will be permanently erased.</p>
+                <form id="deleteAccountForm">
+                    <div class="form-group"><label for="deleteConfirmPasswordInput">Confirm Password</label><input type="password" id="deleteConfirmPasswordInput" required placeholder="Enter your password"></div>
+                    <button type="submit" class="modal-btn danger">Delete My Account</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
