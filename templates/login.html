@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TaskFlow - Sign In / Sign Up</title>
     <!-- Favicon for Browser Tab -->
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+    <link rel="shortcut icon" href="static/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="static/style.css">
 </head>
 <body class="auth-body">
     <div class="auth-container">
@@ -129,6 +129,10 @@
                 clearAlert();
             });
 
+            // Storage Helpers for Static Hosting (GitHub Pages)
+            function getUsers() { return JSON.parse(localStorage.getItem('taskflow_users') || '[]'); }
+            function saveUsers(u) { localStorage.setItem('taskflow_users', JSON.stringify(u)); }
+
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 clearAlert();
@@ -141,14 +145,20 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ username, password })
                     });
-                    const data = await res.json();
                     if (res.ok) {
-                        window.location.href = '/';
-                    } else {
-                        showAlert(data.error || 'Login failed.');
+                        window.location.href = 'index.html';
+                        return;
                     }
-                } catch (err) {
-                    showAlert('Server connection error. Please try again.');
+                } catch (err) {}
+
+                // Fallback for static hosting on GitHub Pages
+                const users = getUsers();
+                const user = users.find(u => (u.username === username || u.email === username) && u.password === password);
+                if (user) {
+                    sessionStorage.setItem('taskflow_session', user.id);
+                    window.location.href = 'index.html';
+                } else {
+                    showAlert('Invalid username or password.');
                 }
             });
 
@@ -165,15 +175,23 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ username, email, password })
                     });
-                    const data = await res.json();
                     if (res.ok) {
-                        window.location.href = '/';
-                    } else {
-                        showAlert(data.error || 'Registration failed.');
+                        window.location.href = 'index.html';
+                        return;
                     }
-                } catch (err) {
-                    showAlert('Server connection error. Please try again.');
+                } catch (err) {}
+
+                // Fallback for static hosting on GitHub Pages
+                const users = getUsers();
+                if (users.some(u => u.username === username)) {
+                    showAlert('Username already taken.');
+                    return;
                 }
+                const newUser = { id: Date.now(), username, email, password, created_at: new Date().toLocaleDateString() };
+                users.push(newUser);
+                saveUsers(newUser);
+                sessionStorage.setItem('taskflow_session', newUser.id);
+                window.location.href = 'index.html';
             });
         });
     </script>
