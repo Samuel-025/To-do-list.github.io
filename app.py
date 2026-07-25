@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='.', static_folder='static')
 
 # Application Configuration
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))

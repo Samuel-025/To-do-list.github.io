@@ -32,6 +32,9 @@ A modern, full-stack Task Manager application combining the single-column dashbo
 ```text
 To-Do List/
 ├── app.py                  # Flask web server, auth session engine & REST API endpoints
+├── index.html              # Single source of truth: TaskFlow main dashboard layout
+├── login.html              # Single source of truth: User authentication (Sign In / Sign Up)
+├── .nojekyll               # Bypasses Jekyll on GitHub Pages to serve index.html directly
 ├── tasks.db                # SQLite database (Users, Tasks, Subtasks)
 ├── requirements.txt        # Python package dependencies (Flask, Flask-SQLAlchemy)
 ├── .gitignore              # Git ignore rules for venv, cache, and DBs
@@ -39,12 +42,10 @@ To-Do List/
 ├── .vscode/                # VS Code workspace settings & F5 launch config
 │   ├── settings.json
 │   └── launch.json
-├── static/                 # Static web assets
-│   ├── style.css           # Styling, themes, dashboard, auth card & drawer CSS
-│   └── app.js              # Fetch API client, state management & UI event handlers
-└── templates/              # HTML Jinja2 templates
-    ├── index.html          # TaskFlow main dashboard layout
-    └── login.html          # User authentication (Sign In / Sign Up)
+└── static/                 # Static web assets
+    ├── style.css           # Styling, themes, dashboard, auth card & drawer CSS
+    ├── app.js              # Dual-engine API client (Flask REST API + localStorage fallback)
+    └── favicon.svg         # TaskFlow logo browser tab icon
 ```
 
 ---
