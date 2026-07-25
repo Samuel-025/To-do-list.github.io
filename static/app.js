@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let tasks = [];
     let activeTask = null;
     let currentUser = null;
+    let useLocalEngine = (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:');
 
     // DOM Elements
     const searchInput = document.getElementById('searchInput');
@@ -63,6 +64,206 @@ document.addEventListener('DOMContentLoaded', () => {
     const drawerNotes = document.getElementById('drawerNotes');
     const drawerCreatedDate = document.getElementById('drawerCreatedDate');
     const drawerDeleteTaskBtn = document.getElementById('drawerDeleteTaskBtn');
+
+    // --- Client-Side Storage Engine for GitHub Pages Live Demo ---
+    const StorageEngine = {
+        getUsers() {
+            return JSON.parse(localStorage.getItem('taskflow_users') || '[]');
+        },
+        saveUsers(users) {
+            localStorage.setItem('taskflow_users', JSON.stringify(users));
+        },
+        getCurrentUser() {
+            const userId = sessionStorage.getItem('taskflow_session');
+            if (!userId) return null;
+            return this.getUsers().find(u => u.id === parseInt(userId, 10)) || null;
+        },
+        getTasks() {
+            const user = this.getCurrentUser();
+            if (!user) return [];
+            const allTasks = JSON.parse(localStorage.getItem('taskflow_tasks') || '[]');
+            return allTasks.filter(t => t.user_id === user.id);
+        },
+        saveTasks(tasks) {
+            const user = this.getCurrentUser();
+            if (!user) return;
+            let allTasks = JSON.parse(localStorage.getItem('taskflow_tasks') || '[]');
+            allTasks = allTasks.filter(t => t.user_id !== user.id).concat(tasks);
+            localStorage.setItem('taskflow_tasks', JSON.stringify(allTasks));
+        }
+    };
+
+    // Unified API Client
+    async function apiRequest(url, options = {}) {
+        if (!useLocalEngine) {
+            try {
+                const res = await fetch(url, options);
+                if (res.status === 404 && url.startsWith('/api/')) {
+                    useLocalEngine = true;
+                } else {
+                    return res;
+                }
+            } catch (e) {
+                useLocalEngine = true;
+            }
+        }
+
+        // Local Engine Fallback for GitHub Pages static hosting
+        const method = (options.method || 'GET').toUpperCase();
+        const data = options.body ? JSON.parse(options.body) : {};
+
+        if (url === '/api/auth/me') {
+            const user = StorageEngine.getCurrentUser();
+            if (!user) return { status: 401, ok: false, json: async () => ({ error: 'Unauthorized' }) };
+            return { status: 200, ok: true, json: async () => user };
+        }
+
+        if (url === '/api/auth/logout') {
+            sessionStorage.removeItem('taskflow_session');
+            return { status: 200, ok: true, json: async () => ({ message: 'Logged out' }) };
+        }
+
+        if (url === '/api/auth/account/password' && method === 'PUT') {
+            const user = StorageEngine.getCurrentUser();
+            if (!user || user.password !== data.current_password) {
+                return { status: 400, ok: false, json: async () => ({ error: 'Incorrect current password' }) };
+            }
+            user.password = data.new_password;
+            const users = StorageEngine.getUsers();
+            const idx = users.findIndex(u => u.id === user.id);
+            if (idx !== -1) users[idx] = user;
+            StorageEngine.saveUsers(users);
+            return { status: 200, ok: true, json: async () => ({ success: true }) };
+        }
+
+        if (url === '/api/auth/account' && method === 'DELETE') {
+            const user = StorageEngine.getCurrentUser();
+            if (!user || user.password !== data.password) {
+                return { status: 400, ok: false, json: async () => ({ error: 'Incorrect password' }) };
+            }
+            let users = StorageEngine.getUsers().filter(u => u.id !== user.id);
+            StorageEngine.saveUsers(users);
+            sessionStorage.removeItem('taskflow_session');
+            return { status: 200, ok: true, json: async () => ({ success: true }) };
+        }
+
+        if (url.startsWith('/api/tasks')) {
+            let taskList = StorageEngine.getTasks();
+
+            if (url.includes('?') && method === 'GET') {
+                const queryParams = new URLSearchParams(url.split('?')[1]);
+                const filter = queryParams.get('filter') || 'all';
+                const search = (queryParams.get('search') || '').toLowerCase();
+                const sort = queryParams.get('sort') || 'created_at';
+
+                if (filter === 'active') taskList = taskList.filter(t => !t.completed);
+                else if (filter === 'done') taskList = taskList.filter(t => t.completed);
+                else if (filter === 'high_priority') taskList = taskList.filter(t => t.priority === 'high');
+
+                if (search) taskList = taskList.filter(t => t.content.toLowerCase().includes(search));
+
+                if (sort === 'priority') {
+                    const order = { high: 0, medium: 1, normal: 1, low: 2 };
+                    taskList.sort((a, b) => order[a.priority] - order[b.priority]);
+                } else if (sort === 'due_date') {
+                    taskList.sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
+                } else if (sort === 'oldest') {
+                    taskList.sort((a, b) => a.id - b.id);
+                } else {
+                    taskList.sort((a, b) => b.id - a.id);
+                }
+
+                return { status: 200, ok: true, json: async () => taskList };
+            }
+
+            if (method === 'POST' && !url.includes('/subtasks')) {
+                const user = StorageEngine.getCurrentUser();
+                const newTask = {
+                    id: Date.now(),
+                    user_id: user.id,
+                    content: data.content,
+                    priority: data.priority || 'medium',
+                    due_date: data.due_date || null,
+                    completed: false,
+                    important: false,
+                    notes: '',
+                    created_at: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                    subtasks: []
+                };
+                taskList.unshift(newTask);
+                StorageEngine.saveTasks(taskList);
+                return { status: 201, ok: true, json: async () => newTask };
+            }
+
+            const matchTask = url.match(/\/api\/tasks\/(\d+)/);
+            if (matchTask) {
+                const taskId = parseInt(matchTask[1], 10);
+                let task = taskList.find(t => t.id === taskId);
+
+                if (method === 'GET') {
+                    return { status: 200, ok: true, json: async () => task };
+                }
+
+                if (method === 'PUT') {
+                    Object.assign(task, data);
+                    StorageEngine.saveTasks(taskList);
+                    return { status: 200, ok: true, json: async () => task };
+                }
+
+                if (method === 'DELETE') {
+                    taskList = taskList.filter(t => t.id !== taskId);
+                    StorageEngine.saveTasks(taskList);
+                    return { status: 200, ok: true, json: async () => ({ success: true }) };
+                }
+
+                if (method === 'POST' && url.endsWith('/subtasks')) {
+                    const newSubtask = { id: Date.now(), task_id: taskId, content: data.content, completed: false };
+                    if (!task.subtasks) task.subtasks = [];
+                    task.subtasks.push(newSubtask);
+                    StorageEngine.saveTasks(taskList);
+                    return { status: 201, ok: true, json: async () => newSubtask };
+                }
+            }
+        }
+
+        if (url.startsWith('/api/subtasks/')) {
+            const subtaskId = parseInt(url.split('/')[3], 10);
+            let taskList = StorageEngine.getTasks();
+            let foundSub = null;
+            let parentTask = null;
+
+            for (let t of taskList) {
+                if (t.subtasks) {
+                    foundSub = t.subtasks.find(s => s.id === subtaskId);
+                    if (foundSub) { parentTask = t; break; }
+                }
+            }
+
+            if (foundSub) {
+                if (method === 'PUT') {
+                    Object.assign(foundSub, data);
+                    StorageEngine.saveTasks(taskList);
+                    return { status: 200, ok: true, json: async () => foundSub };
+                }
+                if (method === 'DELETE') {
+                    parentTask.subtasks = parentTask.subtasks.filter(s => s.id !== subtaskId);
+                    StorageEngine.saveTasks(taskList);
+                    return { status: 200, ok: true, json: async () => ({ success: true }) };
+                }
+            }
+        }
+
+        if (url === '/api/stats') {
+            const taskList = StorageEngine.getTasks();
+            const total = taskList.length;
+            const done = taskList.filter(t => t.completed).length;
+            const pending = total - done;
+            const completion_rate = total > 0 ? Math.round((done / total) * 100) : 0;
+            return { status: 200, ok: true, json: async () => ({ total, done, pending, completion_rate }) };
+        }
+
+        return { status: 404, ok: false, json: async () => ({ error: 'Not found' }) };
+    }
 
     // Priority Selection in Add Task Form
     priorityPills.forEach(pill => {
@@ -145,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const new_password = document.getElementById('newPasswordInput').value;
 
             try {
-                const res = await fetch('/api/auth/account/password', {
+                const res = await apiRequest('/api/auth/account/password', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ current_password, new_password })
@@ -175,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                const res = await fetch('/api/auth/account', {
+                const res = await apiRequest('/api/auth/account', {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password })
@@ -183,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await res.json();
                 if (res.ok) {
                     alert('Account deleted. Redirecting to sign in page...');
-                    window.location.href = '/login';
+                    window.location.href = 'login.html';
                 } else {
                     showModalAlert(data.error || 'Account deletion failed.');
                 }
@@ -196,14 +397,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch Current User
     async function fetchUser() {
         try {
-            const res = await fetch('/api/auth/me');
+            const res = await apiRequest('/api/auth/me');
             if (res.ok) {
                 currentUser = await res.json();
                 if (userName) userName.innerText = currentUser.username;
                 if (dropdownUserName) dropdownUserName.innerText = currentUser.username;
                 if (dropdownUserEmail) dropdownUserEmail.innerText = currentUser.email;
             } else if (res.status === 401) {
-                window.location.href = '/login';
+                window.location.href = 'login.html';
             }
         } catch (err) {
             console.error('Error fetching user profile:', err);
@@ -213,8 +414,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
             try {
-                await fetch('/api/auth/logout', { method: 'POST' });
-                window.location.href = '/login';
+                await apiRequest('/api/auth/logout', { method: 'POST' });
+                window.location.href = 'login.html';
             } catch (err) {
                 console.error('Error logging out:', err);
             }
@@ -248,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // API Calls
     async function fetchStats() {
         try {
-            const res = await fetch('/api/stats');
+            const res = await apiRequest('/api/stats');
             if (res.ok) {
                 const stats = await res.json();
                 if (statTotal) statTotal.innerText = stats.total;
@@ -267,9 +468,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchTasks() {
         try {
             const url = `/api/tasks?filter=${currentFilter}&search=${encodeURIComponent(currentSearch)}&sort=${currentSort}`;
-            const res = await fetch(url);
+            const res = await apiRequest(url);
             if (res.status === 401) {
-                window.location.href = '/login';
+                window.location.href = 'login.html';
                 return;
             }
             if (res.ok) {
@@ -369,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Actions
     async function toggleTaskCompleted(taskId, completed) {
         try {
-            const res = await fetch(`/api/tasks/${taskId}`, {
+            const res = await apiRequest(`/api/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ completed })
@@ -387,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function toggleTaskImportant(taskId, important) {
         try {
-            const res = await fetch(`/api/tasks/${taskId}`, {
+            const res = await apiRequest(`/api/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ important })
@@ -417,7 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            const res = await fetch('/api/tasks', {
+            const res = await apiRequest('/api/tasks', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newTask)
@@ -488,7 +689,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeTask) return;
         activeTask[field] = value;
         try {
-            await fetch(`/api/tasks/${activeTask.id}`, {
+            await apiRequest(`/api/tasks/${activeTask.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ [field]: value })
@@ -526,7 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeTask) return;
         if (confirm('Are you sure you want to delete this task?')) {
             try {
-                const res = await fetch(`/api/tasks/${activeTask.id}`, { method: 'DELETE' });
+                const res = await apiRequest(`/api/tasks/${activeTask.id}`, { method: 'DELETE' });
                 if (res.ok) {
                     closeDrawer();
                     fetchTasks();
@@ -588,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!content) return;
 
         try {
-            const res = await fetch(`/api/tasks/${activeTask.id}/subtasks`, {
+            const res = await apiRequest(`/api/tasks/${activeTask.id}/subtasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content })
@@ -608,7 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function toggleSubtaskCompleted(subtaskId, completed) {
         try {
-            const res = await fetch(`/api/subtasks/${subtaskId}`, {
+            const res = await apiRequest(`/api/subtasks/${subtaskId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ completed })
@@ -626,7 +827,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function deleteSubtask(subtaskId) {
         try {
-            const res = await fetch(`/api/subtasks/${subtaskId}`, { method: 'DELETE' });
+            const res = await apiRequest(`/api/subtasks/${subtaskId}`, { method: 'DELETE' });
             if (res.ok) {
                 activeTask.subtasks = activeTask.subtasks.filter(s => s.id !== subtaskId);
                 renderSubtasks();

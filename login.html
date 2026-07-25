@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Sign In / Sign Up</title>
+    <!-- Favicon for Browser Tab -->
+    <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+    <link rel="shortcut icon" href="static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body class="auth-body">
+    <div class="auth-container">
+        <!-- Top Compact Icon Theme Toggle Bar -->
+        <div class="auth-header-bar">
+            <button id="themeToggleBtn" class="theme-icon-btn" title="Toggle Theme">
+                <span class="theme-icon">🌙</span>
+            </button>
+        </div>
+
+        <div class="auth-card">
+            <div class="auth-brand">
+                <div class="brand-logo">✓</div>
+                <h2>TaskFlow</h2>
+                <p>Organize your work and life efficiently.</p>
+            </div>
+
+            <!-- Auth Tabs -->
+            <div class="auth-tabs">
+                <button id="tabLogin" class="auth-tab active">Sign In</button>
+                <button id="tabRegister" class="auth-tab">Sign Up</button>
+            </div>
+
+            <!-- Alert Container -->
+            <div id="authAlert" class="auth-alert" style="display: none;"></div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="loginUsername">Username or Email</label>
+                    <input type="text" id="loginUsername" placeholder="Enter your username or email" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" placeholder="Enter your password" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="auth-submit-btn">Sign In</button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" class="auth-form" style="display: none;">
+                <div class="form-group">
+                    <label for="regUsername">Username</label>
+                    <input type="text" id="regUsername" placeholder="Choose a username" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="regEmail">Email Address</label>
+                    <input type="email" id="regEmail" placeholder="name@example.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="regPassword">Password</label>
+                    <input type="password" id="regPassword" placeholder="Create a strong password" required autocomplete="new-password">
+                </div>
+                <button type="submit" class="auth-submit-btn">Create Account</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabLogin = document.getElementById('tabLogin');
+            const tabRegister = document.getElementById('tabRegister');
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const authAlert = document.getElementById('authAlert');
+            const themeToggleBtn = document.getElementById('themeToggleBtn');
+
+            // Theme Management
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeBtnIcon(savedTheme);
+
+            themeToggleBtn.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateThemeBtnIcon(newTheme);
+            });
+
+            function updateThemeBtnIcon(theme) {
+                const themeIcon = themeToggleBtn.querySelector('.theme-icon');
+                if (theme === 'dark') {
+                    themeIcon.innerText = '☀️';
+                    themeToggleBtn.title = 'Switch to Light Mode';
+                } else {
+                    themeIcon.innerText = '🌙';
+                    themeToggleBtn.title = 'Switch to Dark Mode';
+                }
+            }
+
+            function showAlert(msg, isError = true) {
+                authAlert.style.display = 'block';
+                authAlert.className = `auth-alert ${isError ? 'error' : 'success'}`;
+                authAlert.innerText = msg;
+            }
+
+            function clearAlert() {
+                authAlert.style.display = 'none';
+                authAlert.innerText = '';
+            }
+
+            tabLogin.addEventListener('click', () => {
+                tabLogin.classList.add('active');
+                tabRegister.classList.remove('active');
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                clearAlert();
+            });
+
+            tabRegister.addEventListener('click', () => {
+                tabRegister.classList.add('active');
+                tabLogin.classList.remove('active');
+                registerForm.style.display = 'block';
+                loginForm.style.display = 'none';
+                clearAlert();
+            });
+
+            // Storage Helpers for Static Hosting (GitHub Pages)
+            function getUsers() { return JSON.parse(localStorage.getItem('taskflow_users') || '[]'); }
+            function saveUsers(u) { localStorage.setItem('taskflow_users', JSON.stringify(u)); }
+
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                clearAlert();
+                const username = document.getElementById('loginUsername').value;
+                const password = document.getElementById('loginPassword').value;
+
+                try {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    if (res.ok) {
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                } catch (err) {}
+
+                // Fallback for static hosting on GitHub Pages
+                const users = getUsers();
+                const user = users.find(u => (u.username === username || u.email === username) && u.password === password);
+                if (user) {
+                    sessionStorage.setItem('taskflow_session', user.id);
+                    window.location.href = 'index.html';
+                } else {
+                    showAlert('Invalid username or password.');
+                }
+            });
+
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                clearAlert();
+                const username = document.getElementById('regUsername').value;
+                const email = document.getElementById('regEmail').value;
+                const password = document.getElementById('regPassword').value;
+
+                try {
+                    const res = await fetch('/api/auth/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, email, password })
+                    });
+                    if (res.ok) {
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                } catch (err) {}
+
+                // Fallback for static hosting on GitHub Pages
+                const users = getUsers();
+                if (users.some(u => u.username === username)) {
+                    showAlert('Username already taken.');
+                    return;
+                }
+                const newUser = { id: Date.now(), username, email, password, created_at: new Date().toLocaleDateString() };
+                users.push(newUser);
+                saveUsers(users);
+                sessionStorage.setItem('taskflow_session', newUser.id);
+                window.location.href = 'index.html';
+            });
+        });
+    </script>
+</body>
+</html>
