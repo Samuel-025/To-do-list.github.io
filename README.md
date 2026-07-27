@@ -27,6 +27,12 @@ A modern, full-stack Task Manager application combining the single-column dashbo
 
 ---
 
+## 🏷️ Repository Topics & Tags
+
+`todo-list` · `task-manager` · `flask` · `python` · `javascript` · `html5` · `css3` · `sqlite` · `rest-api` · `spa` · `dark-mode` · `productivity` · `web-application` · `github-pages`
+
+---
+
 ## 📁 Repository Structure
 
 ```text
@@ -35,6 +41,7 @@ To-Do List/
 ├── index.html              # Single source of truth: TaskFlow main dashboard layout
 ├── login.html              # Single source of truth: User authentication (Sign In / Sign Up)
 ├── .nojekyll               # Bypasses Jekyll on GitHub Pages to serve index.html directly
+├── LICENSE                 # Standard MIT License
 ├── tasks.db                # SQLite database (Users, Tasks, Subtasks)
 ├── requirements.txt        # Python package dependencies (Flask, Flask-SQLAlchemy)
 ├── .gitignore              # Git ignore rules for venv, cache, and DBs
