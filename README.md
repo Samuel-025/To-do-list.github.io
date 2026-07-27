@@ -27,12 +27,6 @@ A modern, full-stack Task Manager application combining the single-column dashbo
 
 ---
 
-## 🏷️ Repository Topics & Tags
-
-`todo-list` · `task-manager` · `flask` · `python` · `javascript` · `html5` · `css3` · `sqlite` · `rest-api` · `spa` · `dark-mode` · `productivity` · `web-application` · `github-pages`
-
----
-
 ## 📁 Repository Structure
 
 ```text
